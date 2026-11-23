@@ -1,0 +1,1458 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Maskroom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the photo takes the wide column; masks, mask options and sliders sit in a side panel that drops below the photo on phones.
+   Single dark look on purpose: a neutral surround keeps colour judgements honest while editing. */
+:root{
+  --bg:#14171b; --panel:#1b1f24; --raise:#252a31; --line:#333a43;
+  --fg:#e7e9ec; --muted:#98a0ab; --accent:#7db4e6;
+  --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-num:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg);
+  font:14px/1.45 var(--font-ui);
+  padding-block:12px 24px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+h1,h2{margin:0}
+h1{font-size:16px;font-weight:600;letter-spacing:.01em}
+h2{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}
+h2 .for{text-transform:none;letter-spacing:0;font-weight:500;color:var(--fg);font-size:12px}
+.muted{color:var(--muted)}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-bottom:14px}
+.brand{display:flex;align-items:baseline;gap:12px;min-width:0}
+.brand .muted{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--raise);color:var(--fg);border:1px solid var(--line);border-radius:6px;
+  padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;
+}
+.btn:hover{border-color:#4a535f}
+.btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+button:focus-visible,input:focus-visible,label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+
+.work{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:16px;align-items:start}
+.stage{min-width:0;position:sticky;top:8px}
+.grp{margin:16px 0 10px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+#adj .grp:first-child{margin-top:0}
+.stage.drop .canvaswrap{outline:2px dashed var(--accent);outline-offset:4px}
+.canvaswrap{
+  position:relative;width:100%;
+  max-width:max(320px,calc((100vh - 200px) * var(--ratio,1.5)));
+  margin-inline:auto;border-radius:4px;overflow:hidden;background:#000;line-height:0;
+}
+.zoomer{position:relative;transform-origin:0 0;will-change:transform}
+#view{display:block;width:100%;height:auto}
+#ui{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#ui.pan{cursor:grab}
+#ui.panning{cursor:grabbing}
+.nav{position:absolute;top:8px;right:8px;width:clamp(96px,22%,170px);border:1.5px solid #fff;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.6),0 2px 10px rgba(0,0,0,.5);background:#000;overflow:hidden;touch-action:none;cursor:pointer;line-height:0}
+.nav canvas{display:block;width:100%;height:auto}
+.navbox{position:absolute;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.7),0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
+.zoombar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;margin:0 auto 10px}
+.zoombar .btn{padding:5px 10px;min-width:38px}
+.zoombar output{font:12px var(--font-num);color:var(--muted);min-width:5ch;text-align:center;font-variant-numeric:tabular-nums}
+.hint{margin:10px auto 0;max-width:60ch;text-align:center;color:var(--muted);font-size:13px}
+
+.panel{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.panel>section{padding:14px}
+.panel>section+section{border-top:1px solid var(--line)}
+.panel>section[hidden]{display:none}
+
+.adds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.smartbtn{margin-bottom:12px}
+.adds .wide{grid-column:1/-1}
+.btn.ai{border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.adds .btn{padding:7px 6px}
+#masks{list-style:none;margin:10px 0 8px;padding:0;display:grid;gap:4px}
+#masks li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px;border:1px solid transparent;border-radius:6px}
+#masks li.sel{background:var(--raise);border-color:var(--accent)}
+#masks li.empty{display:block;color:var(--muted);padding:8px 2px;font-size:13px}
+.pick{display:flex;align-items:center;gap:8px;min-width:0;background:none;border:0;color:inherit;font:inherit;padding:8px;text-align:left;cursor:pointer;border-radius:6px}
+.pick .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick .ty{margin-left:auto;color:var(--muted);font-size:12px}
+.icon{display:grid;place-items:center;width:32px;height:32px;background:none;border:0;border-radius:6px;color:var(--muted);cursor:pointer}
+.icon:hover{color:var(--fg)}
+.icon[aria-pressed="false"]{opacity:.4}
+svg{display:block;flex:none}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;margin-top:6px}
+.chk input{accent-color:var(--accent);width:16px;height:16px}
+
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin-bottom:12px}
+.row label{font-size:13px}
+.row output{font:12px var(--font-num);color:var(--muted);font-variant-numeric:tabular-nums}
+.row input[type=range]{grid-column:1/-1;width:100%;margin:4px 0 0;accent-color:var(--accent)}
+.row input:disabled{opacity:.35}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.note{margin:0 0 12px;color:var(--muted);font-size:13px}
+#opts .btn{width:100%}
+#reset{width:100%}
+
+@media (max-width:820px){
+  .work{grid-template-columns:minmax(0,1fr)}
+  .stage{position:static}
+}
+@media (prefers-reduced-motion:no-preference){
+  .btn,.icon{transition:border-color .12s,color .12s}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="g-lin" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="currentColor"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient>
+    <radialGradient id="g-rad"><stop offset="0.35" stop-color="currentColor"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></radialGradient>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="brand"><h1>Maskroom</h1><span class="muted" id="fname">Sample photo</span></div>
+  <div class="actions">
+    <button class="btn" id="open" type="button">Open photo</button>
+    <button class="btn" id="cmp" type="button">Hold to compare</button>
+    <input type="file" id="file" accept="image/*" hidden>
+  </div>
+</header>
+
+<main class="work">
+  <section class="stage" id="stage" aria-label="Photo">
+    <div class="zoombar" role="group" aria-label="Zoom">
+      <button class="btn" type="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <output id="zval">100%</output>
+      <button class="btn" type="button" id="zin" aria-label="Zoom in">+</button>
+      <button class="btn" type="button" id="zfit">Fit</button>
+      <button class="btn" type="button" id="hand" aria-pressed="false">Hand</button>
+      <button class="btn" type="button" id="guides" aria-pressed="true">Guides</button>
+    </div>
+    <div class="canvaswrap" id="wrap">
+      <div class="zoomer" id="zoomer"><canvas id="view"></canvas><canvas id="ui"></canvas></div>
+      <div class="nav" id="nav" hidden><canvas id="navc"></canvas><div class="navbox" id="navbox"></div></div>
+    </div>
+    <p class="hint" id="hint" role="status"></p>
+  </section>
+
+  <aside class="panel" aria-label="Masks and adjustments">
+    <section>
+      <h2>Masks</h2>
+      <div class="adds">
+        <button class="btn ai wide" type="button" id="ai"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 1l1.6 4.4L14 7l-4.4 1.6L8 13l-1.6-4.4L2 7l4.4-1.6z"/></svg>Auto select subject (AI)</button>
+        <button class="btn" type="button" data-add="subject"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="1.5" stroke-dasharray="2.4 2"/><circle cx="8" cy="8" r="2.4" fill="currentColor" stroke="none"/></svg>Box select</button>
+        <button class="btn" type="button" data-add="brush"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M13.6 2.4a1.4 1.4 0 0 0-2 0L6.9 7.1l2 2 4.7-4.7a1.4 1.4 0 0 0 0-2zM5.9 8.1C4.3 8.1 3 9.4 3 11c0 .9-.4 1.6-1 2 1.8.4 4.4.2 5.3-1.4.5-.9.3-1.7-.3-2.3-.4-.4-.7-.6-1.1-.2z"/></svg>Brush</button>
+        <button class="btn" type="button" data-add="linear"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="url(#g-lin)"/></svg>Linear</button>
+        <button class="btn" type="button" data-add="radial"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="url(#g-rad)"/></svg>Radial</button>
+      </div>
+      <ul id="masks"></ul>
+      <label class="chk"><input type="checkbox" id="showmask" checked> Show selected mask in red</label>
+    </section>
+    <section id="opts" hidden></section>
+    <section>
+      <h2>Adjustments <span class="for" id="adjfor"></span></h2>
+      <div id="adj"></div>
+      <button class="btn" id="reset" type="button">Reset adjustments</button>
+    </section>
+    <section>
+      <h2>Export</h2>
+      <div class="seg">
+        <button class="btn" type="button" id="exp-jpg">Save JPEG</button>
+        <button class="btn" type="button" id="exp-png">Save PNG</button>
+      </div>
+      <p class="note" style="margin:0">Saves at the original photo's full size with every visible mask applied. JPEG is high quality; PNG is lossless but a much larger file.</p>
+    </section>
+  </aside>
+</main>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var view=$('view'),ui=$('ui'),vctx=view.getContext('2d'),uctx=ui.getContext('2d');
+var wrap=$('wrap'),hint=$('hint'),ml=$('masks'),opts=$('opts'),adj=$('adj');
+
+var W=0,H=0,src=null,out=null;
+var masks=[],selId=null,nextId=1,counter={brush:0,linear:0,radial:0};
+var showMask=true,compare=false,scheduled=false,hover=null,drag=null;
+var brush={mode:'paint',size:90,feather:50,tool:'brush',tol:55,contig:false},stamp=null;
+var zoom=1,tx=0,ty=0,handOn=false,spaceDown=false,pan=null,pts={},pinch=null,navDrag=false;
+var smart=false,box=null,srcCanvas=null,origFile=null,saveTimer=null,exportBusy=false,guides=true,planeCache=null;
+var zoomer=$('zoomer'),nav=$('nav'),navc=$('navc'),nctx=navc.getContext('2d'),navbox=$('navbox');
+var LABEL={brush:'Brush',linear:'Linear',radial:'Radial'};
+var ICON={
+  brush:'<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M13.6 2.4a1.4 1.4 0 0 0-2 0L6.9 7.1l2 2 4.7-4.7a1.4 1.4 0 0 0 0-2zM5.9 8.1C4.3 8.1 3 9.4 3 11c0 .9-.4 1.6-1 2 1.8.4 4.4.2 5.3-1.4.5-.9.3-1.7-.3-2.3-.4-.4-.7-.6-1.1-.2z"/></svg>',
+  linear:'<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="url(#g-lin)"/></svg>',
+  radial:'<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="url(#g-rad)"/></svg>',
+  eye:'<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>',
+  del:'<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+};
+
+/* colour lookup tables: sRGB to linear light and back, so exposure behaves like stops of light */
+var LIN=new Float32Array(256),ENC=new Float32Array(4096),i,v;
+for(i=0;i<256;i++){v=i/255;LIN[i]=v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4);}
+for(i=0;i<4096;i++){v=i/4095;ENC[i]=255*(v<=0.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-0.055);}
+
+function cur(){for(var k=0;k<masks.length;k++)if(masks[k].id===selId)return masks[k];return null;}
+
+/* ---------- masks ---------- */
+function newMask(type,name){
+  var m={id:nextId++,type:type,name:name||(LABEL[type]+' '+(++counter[type])),visible:true,
+    adj:zeroAdj(),a:new Uint8Array(W*H),dirty:false,g:null,feather:50,invert:false,hist:[]};
+  if(type==='brush'){
+    m.mc=document.createElement('canvas');m.mc.width=W;m.mc.height=H;
+    m.mx=m.mc.getContext('2d',{willReadFrequently:true});
+  }
+  masks.push(m);selId=m.id;guides=true;return m;
+}
+function pullBrush(m){
+  var d=m.mx.getImageData(0,0,W,H).data,a=m.a,p,j;
+  for(p=0,j=3;p<a.length;p++,j+=4)a[p]=d[j];
+  m.dirty=false;
+}
+function computeGrad(m){
+  var a=m.a,g=m.g,inv=m.invert,x,y,p=0,val;
+  if(!g){a.fill(0);return;}
+  if(m.type==='linear'){
+    var dx=g.x1-g.x0,dy=g.y1-g.y0,L2=dx*dx+dy*dy;
+    if(L2<4){a.fill(0);return;}
+    for(y=0;y<H;y++){
+      var by=(y-g.y0)*dy;
+      for(x=0;x<W;x++,p++){
+        val=1-((x-g.x0)*dx+by)/L2;
+        val=val<0?0:val>1?1:val;
+        val=val*val*(3-2*val);
+        a[p]=(inv?1-val:val)*255;
+      }
+    }
+  }else{
+    var r=Math.sqrt((g.x1-g.x0)*(g.x1-g.x0)+(g.y1-g.y0)*(g.y1-g.y0));
+    if(r<2){a.fill(0);return;}
+    var inner=r*(1-m.feather/100);
+    for(y=0;y<H;y++){
+      var ddy=y-g.y0;
+      for(x=0;x<W;x++,p++){
+        var ddx=x-g.x0,d=Math.sqrt(ddx*ddx+ddy*ddy);
+        if(d<=inner)val=1;
+        else if(d>=r)val=0;
+        else{val=(r-d)/(r-inner);val=val*val*(3-2*val);}
+        a[p]=(inv?1-val:val)*255;
+      }
+    }
+  }
+}
+
+/* ---------- brush ---------- */
+function makeStamp(){
+  var r=Math.max(1,brush.size/2),d=Math.ceil(r*2)+2;
+  var c=document.createElement('canvas');c.width=c.height=d;
+  var x=c.getContext('2d'),g=x.createRadialGradient(d/2,d/2,0,d/2,d/2,r);
+  var hard=Math.min(0.999,1-brush.feather/100);
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(hard,'rgba(255,255,255,1)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.fillRect(0,0,d,d);
+  stamp={c:c,d:d};
+}
+function stampAt(m,x,y,alpha){
+  m.mx.globalCompositeOperation=brush.mode==='erase'?'destination-out':'source-over';
+  m.mx.globalAlpha=alpha;
+  m.mx.drawImage(stamp.c,x-stamp.d/2,y-stamp.d/2);
+  m.mx.globalAlpha=1;
+  m.dirty=true;
+}
+function strokeTo(m,p){
+  var l=drag.last,dx=p.x-l.x,dy=p.y-l.y,d=Math.sqrt(dx*dx+dy*dy),step=Math.max(1,brush.size*0.07);
+  if(d<step)return;
+  var n=Math.floor(d/step),k;
+  for(k=1;k<=n;k++)stampAt(m,l.x+dx*k/n,l.y+dy*k/n,0.35);
+  drag.last=p;
+}
+
+/* ---------- undo and colour wand ---------- */
+function snap(m){
+  if(m.type!=='brush')return;
+  m.hist.push(m.mx.getImageData(0,0,W,H));
+  if(m.hist.length>8)m.hist.shift();
+}
+function undo(m){
+  var s=m.hist.pop();
+  if(!s)return false;
+  m.mx.putImageData(s,0,0);m.dirty=true;schedule();
+  return true;
+}
+document.addEventListener('keydown',function(e){
+  if(!(e.ctrlKey||e.metaKey)||e.shiftKey||e.key.toLowerCase()!=='z')return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName))return;
+  var m=cur();
+  if(m&&m.type==='brush'&&undo(m))e.preventDefault();
+});
+
+/* Colour wand: pixels within `tol` of the clicked colour are added to, or removed from, the mask.
+   Not restricted to touching pixels unless `contig` is set, so sky seen between fronds goes too. */
+/*WAND-START*/
+function applyWand(sd,W,H,md,px,py,tol,contig,add){
+  var x0=Math.min(W-1,Math.max(0,Math.round(px))),y0=Math.min(H-1,Math.max(0,Math.round(py)));
+  var i=(y0*W+x0)*4,p,v,sr=sd[i],sg=sd[i+1],sb=sd[i+2];
+  var soft=Math.max(1,tol*0.25),n=W*H;
+  function cover(q){
+    var j=q*4,dr=sd[j]-sr,dg=sd[j+1]-sg,db=sd[j+2]-sb;
+    var t=(tol-Math.sqrt(dr*dr+dg*dg+db*db))/soft;
+    return t>=1?1:t;
+  }
+  function put(q,t){
+    var j=q*4;
+    if(add){var a=Math.round(t*255);if(a>md[j+3]){md[j]=255;md[j+1]=255;md[j+2]=255;md[j+3]=a;}}
+    else md[j+3]=Math.round(md[j+3]*(1-t));
+  }
+  if(contig){
+    var vis=new Uint8Array(n),q=new Int32Array(n),h=0,t=0,s=y0*W+x0,cx;
+    vis[s]=1;q[t++]=s;
+    while(h<t){
+      p=q[h++];v=p===s?1:cover(p);
+      if(v<=0)continue;
+      put(p,v);cx=p%W;
+      if(cx>0&&!vis[p-1]){vis[p-1]=1;q[t++]=p-1;}
+      if(cx<W-1&&!vis[p+1]){vis[p+1]=1;q[t++]=p+1;}
+      if(p>=W&&!vis[p-W]){vis[p-W]=1;q[t++]=p-W;}
+      if(p<n-W&&!vis[p+W]){vis[p+W]=1;q[t++]=p+W;}
+    }
+  }else{
+    for(p=0;p<n;p++){v=cover(p);if(v>0)put(p,v);}
+  }
+}
+/*WAND-END*/
+function wand(m,px,py){
+  var id=m.mx.getImageData(0,0,W,H);
+  applyWand(src.data,W,H,id.data,px,py,brush.tol,brush.contig,brush.mode!=='erase');
+  m.mx.putImageData(id,0,0);m.dirty=true;
+}
+
+/* ---------- smart select ---------- */
+/* Colour-based subject cut-out in the spirit of GrabCut. Everything outside the user's box is background.
+   Inside the box, pixels that look unlike the surroundings seed the subject, then subject and background
+   colour models are refitted a few times and each pixel is assigned to the likelier one. */
+/*SEG-START*/
+function segmentSubject(px,sw,sh,bx0,by0,bx1,by1){
+  var n=sw*sh,BINS=4096,x,y,p,i,it;
+  var x0=Math.max(0,Math.floor(bx0)),y0=Math.max(0,Math.floor(by0)),x1=Math.min(sw,Math.ceil(bx1)),y1=Math.min(sh,Math.ceil(by1));
+  var res=new Uint8Array(n);
+  if(x1-x0<4||y1-y0<4)return res;
+  var inBox=new Uint8Array(n),nIn=0;
+  for(y=y0;y<y1;y++)for(x=x0;x<x1;x++){inBox[y*sw+x]=1;nIn++;}
+  var bin=new Uint16Array(n);
+  for(p=0,i=0;p<n;p++,i+=4)bin[p]=((px[i]>>4)<<8)|((px[i+1]>>4)<<4)|(px[i+2]>>4);
+
+  function blur1(a,st){
+    var b=new Float32Array(BINS),idx,c,l,r;
+    for(idx=0;idx<BINS;idx++){
+      c=Math.floor(idx/st)%16;
+      l=c>0?a[idx-st]:a[idx];r=c<15?a[idx+st]:a[idx];
+      b[idx]=0.5*a[idx]+0.25*(l+r);
+    }
+    return b;
+  }
+  function model(lab,want){
+    var h=new Float32Array(BINS),q,tot=0;
+    for(q=0;q<n;q++)if(lab[q]===want)h[bin[q]]+=1;
+    h=blur1(blur1(blur1(h,256),16),1);
+    for(q=0;q<BINS;q++)tot+=h[q];
+    var lg=new Float32Array(BINS);
+    if(tot<=0)return lg;
+    var eps=tot*2e-5,norm=tot*(1+2e-5*BINS);
+    for(q=0;q<BINS;q++)lg[q]=Math.log((h[q]+eps)/norm);
+    return lg;
+  }
+
+  var lab=new Uint8Array(n),nl=new Uint8Array(n),tmp;
+  for(p=0;p<n;p++)lab[p]=inBox[p]?2:0;
+  var logB=model(lab,0),samp=[];
+  for(p=0;p<n;p+=5)if(!inBox[p])samp.push(logB[bin[p]]);
+  if(samp.length<50)return res;
+  samp.sort(function(a,b){return a-b;});
+  var fracs=[0.08,0.25,0.5],fgc=0,fi,thr;
+  for(fi=0;fi<fracs.length&&fgc<0.01*nIn;fi++){
+    thr=samp[Math.min(samp.length-1,Math.floor(fracs[fi]*samp.length))];
+    fgc=0;
+    for(p=0;p<n;p++){lab[p]=(inBox[p]&&logB[bin[p]]<thr)?1:0;fgc+=lab[p];}
+  }
+  if(fgc<0.003*nIn){for(p=0;p<n;p++)lab[p]=inBox[p]?1:0;}
+
+  var sc=new Float32Array(n);
+  for(it=0;it<6;it++){
+    var lf=model(lab,1),lb=model(lab,0),v,b,changed=0,cnt=0;
+    for(p=0;p<n;p++){
+      if(!inBox[p]){sc[p]=-5;continue;}
+      b=bin[p];v=lf[b]-lb[b];sc[p]=v>5?5:v<-5?-5:v;
+    }
+    for(y=0;y<sh;y++)for(x=0;x<sw;x++){
+      p=y*sw+x;
+      if(!inBox[p]){nl[p]=0;continue;}
+      var s9=0,c9=0,yy,xx;
+      for(yy=y-1;yy<=y+1;yy++){
+        if(yy<0||yy>=sh)continue;
+        for(xx=x-1;xx<=x+1;xx++){if(xx<0||xx>=sw)continue;s9+=sc[yy*sw+xx];c9++;}
+      }
+      nl[p]=(0.65*sc[p]+0.35*s9/c9)>0?1:0;
+      if(nl[p]!==lab[p])changed++;
+      cnt+=nl[p];
+    }
+    tmp=lab;lab=nl;nl=tmp;
+    if(cnt===0)return res;
+    if(changed<0.002*nIn)break;
+  }
+
+  /* drop specks, fill tiny enclosed holes */
+  var vis=new Uint8Array(n),queue=new Int32Array(n);
+  function sweep(target,fn){
+    vis.fill(0);
+    for(var s=0;s<n;s++){
+      if(vis[s]||lab[s]!==target)continue;
+      var head=0,tail=0,outside=false;
+      queue[tail++]=s;vis[s]=1;
+      while(head<tail){
+        var c=queue[head++],cx=c%sw;
+        if(!inBox[c])outside=true;
+        if(cx>0&&!vis[c-1]&&lab[c-1]===target){vis[c-1]=1;queue[tail++]=c-1;}
+        if(cx<sw-1&&!vis[c+1]&&lab[c+1]===target){vis[c+1]=1;queue[tail++]=c+1;}
+        if(c>=sw&&!vis[c-sw]&&lab[c-sw]===target){vis[c-sw]=1;queue[tail++]=c-sw;}
+        if(c<n-sw&&!vis[c+sw]&&lab[c+sw]===target){vis[c+sw]=1;queue[tail++]=c+sw;}
+      }
+      fn(tail,outside);
+    }
+  }
+  var minFg=Math.max(12,0.002*nIn),maxHole=0.002*nIn;
+  sweep(1,function(len){if(len<minFg)for(var k=0;k<len;k++)lab[queue[k]]=0;});
+  sweep(0,function(len,outside){if(!outside&&len<maxHole)for(var k=0;k<len;k++)lab[queue[k]]=1;});
+
+  /* soften the edge a little */
+  for(y=y0;y<y1;y++)for(x=x0;x<x1;x++){
+    var s=0,c2=0,ya,xa;
+    for(ya=y-1;ya<=y+1;ya++){
+      if(ya<0||ya>=sh)continue;
+      for(xa=x-1;xa<=x+1;xa++){if(xa<0||xa>=sw)continue;s+=lab[ya*sw+xa];c2++;}
+    }
+    var a=(s/c2-0.5)*2.4+0.5;
+    res[y*sw+x]=a<=0?0:a>=1?255:Math.round(a*255);
+  }
+  return res;
+}
+/* Stretch a square low-res probability map (side S) to 0..1 and scale it up to sw x sh. */
+function upsamplePrior(low,S,sw,sh){
+  var mn=Infinity,mx=-Infinity,i,x,y;
+  for(i=0;i<low.length;i++){if(low[i]<mn)mn=low[i];if(low[i]>mx)mx=low[i];}
+  var rg=mx-mn||1,out=new Float32Array(sw*sh);
+  for(y=0;y<sh;y++){
+    var sy=Math.min(S-1,Math.max(0,(y+0.5)*S/sh-0.5)),y0=Math.floor(sy),y1=Math.min(S-1,y0+1),fy=sy-y0;
+    for(x=0;x<sw;x++){
+      var sx=Math.min(S-1,Math.max(0,(x+0.5)*S/sw-0.5)),x0=Math.floor(sx),x1=Math.min(S-1,x0+1),fx=sx-x0;
+      var a=low[y0*S+x0]*(1-fx)+low[y0*S+x1]*fx,b=low[y1*S+x0]*(1-fx)+low[y1*S+x1]*fx;
+      out[y*sw+x]=((a*(1-fy)+b*fy)-mn)/rg;
+    }
+  }
+  return out;
+}
+
+/* Edge refinement: the AI map is a coarse first guess. Colour models for subject and background are fitted
+   from the pixels the map is fairly sure about, then every pixel is decided by colour plus the AI map. */
+function segmentWithPrior(px,sw,sh,prior){
+  var n=sw*sh,BINS=4096,x,y,p,i,it,res=new Uint8Array(n);
+  var bin=new Uint16Array(n);
+  for(p=0,i=0;p<n;p++,i+=4)bin[p]=((px[i]>>4)<<8)|((px[i+1]>>4)<<4)|(px[i+2]>>4);
+  function blur1(a,st){
+    var b=new Float32Array(BINS),idx,c,l,r;
+    for(idx=0;idx<BINS;idx++){
+      c=Math.floor(idx/st)%16;
+      l=c>0?a[idx-st]:a[idx];r=c<15?a[idx+st]:a[idx];
+      b[idx]=0.5*a[idx]+0.25*(l+r);
+    }
+    return b;
+  }
+  function model(lab,want){
+    var h=new Float32Array(BINS),q,tot=0;
+    for(q=0;q<n;q++){
+      if(want===1?(lab[q]===1&&prior[q]>0.3):(lab[q]===0&&prior[q]<0.7))h[bin[q]]+=1;
+    }
+    h=blur1(blur1(blur1(h,256),16),1);
+    for(q=0;q<BINS;q++)tot+=h[q];
+    var lg=new Float32Array(BINS);
+    if(tot<=0)return lg;
+    var eps=tot*2e-5,norm=tot*(1+2e-5*BINS);
+    for(q=0;q<BINS;q++)lg[q]=Math.log((h[q]+eps)/norm);
+    return lg;
+  }
+  var lab=new Uint8Array(n),nl=new Uint8Array(n),sc=new Float32Array(n),tmp,cnt=0;
+  for(p=0;p<n;p++){lab[p]=prior[p]>0.5?1:0;cnt+=lab[p];}
+  if(cnt<0.0005*n)return res;
+  for(it=0;it<4;it++){
+    var lf=model(lab,1),lb=model(lab,0),v,b,changed=0;
+    cnt=0;
+    for(p=0;p<n;p++){b=bin[p];v=lf[b]-lb[b];v=v>5?5:v<-5?-5:v;sc[p]=0.6*v+(prior[p]-0.5)*9;}
+    for(y=0;y<sh;y++)for(x=0;x<sw;x++){
+      p=y*sw+x;
+      var s9=0,c9=0,yy,xx;
+      for(yy=y-1;yy<=y+1;yy++){
+        if(yy<0||yy>=sh)continue;
+        for(xx=x-1;xx<=x+1;xx++){if(xx<0||xx>=sw)continue;s9+=sc[yy*sw+xx];c9++;}
+      }
+      nl[p]=(0.65*sc[p]+0.35*s9/c9)>0?1:0;
+      if(nl[p]!==lab[p])changed++;
+      cnt+=nl[p];
+    }
+    tmp=lab;lab=nl;nl=tmp;
+    if(cnt===0)break;
+    if(changed<0.001*n)break;
+  }
+  if(cnt===0)for(p=0;p<n;p++)lab[p]=prior[p]>0.5?1:0;
+
+  var vis=new Uint8Array(n),queue=new Int32Array(n);
+  function sweep(target,fn){
+    vis.fill(0);
+    for(var s=0;s<n;s++){
+      if(vis[s]||lab[s]!==target)continue;
+      var head=0,tail=0,edge=false;
+      queue[tail++]=s;vis[s]=1;
+      while(head<tail){
+        var c=queue[head++],cx=c%sw;
+        if(cx===0||cx===sw-1||c<sw||c>=n-sw)edge=true;
+        if(cx>0&&!vis[c-1]&&lab[c-1]===target){vis[c-1]=1;queue[tail++]=c-1;}
+        if(cx<sw-1&&!vis[c+1]&&lab[c+1]===target){vis[c+1]=1;queue[tail++]=c+1;}
+        if(c>=sw&&!vis[c-sw]&&lab[c-sw]===target){vis[c-sw]=1;queue[tail++]=c-sw;}
+        if(c<n-sw&&!vis[c+sw]&&lab[c+sw]===target){vis[c+sw]=1;queue[tail++]=c+sw;}
+      }
+      fn(tail,edge);
+    }
+  }
+  var minFg=Math.max(12,0.0003*n),maxHole=0.0008*n;
+  sweep(1,function(len){if(len<minFg)for(var k=0;k<len;k++)lab[queue[k]]=0;});
+  sweep(0,function(len,edge){if(!edge&&len<maxHole)for(var k=0;k<len;k++)lab[queue[k]]=1;});
+
+  for(y=0;y<sh;y++)for(x=0;x<sw;x++){
+    var s=0,c2=0,ya,xa;
+    for(ya=y-1;ya<=y+1;ya++){
+      if(ya<0||ya>=sh)continue;
+      for(xa=x-1;xa<=x+1;xa++){if(xa<0||xa>=sw)continue;s+=lab[ya*sw+xa];c2++;}
+    }
+    var a=(s/c2-0.5)*2.4+0.5;
+    res[y*sw+x]=a<=0?0:a>=1?255:Math.round(a*255);
+  }
+  return res;
+}
+/*SEG-END*/
+
+function runSmart(m,b){
+  var sc=Math.min(1,800/Math.max(W,H)),sw=Math.max(1,Math.round(W*sc)),sh=Math.max(1,Math.round(H*sc));
+  var tcv=document.createElement('canvas');tcv.width=sw;tcv.height=sh;
+  var tc=tcv.getContext('2d',{willReadFrequently:true});
+  tc.imageSmoothingQuality='high';tc.drawImage(srcCanvas,0,0,sw,sh);
+  var px=tc.getImageData(0,0,sw,sh).data,fx=sw/W,fy=sh/H;
+  var a=segmentSubject(px,sw,sh,Math.min(b.x0,b.x1)*fx,Math.min(b.y0,b.y1)*fy,Math.max(b.x0,b.x1)*fx,Math.max(b.y0,b.y1)*fy);
+  var id=tc.createImageData(sw,sh),d=id.data,cnt=0,p,j;
+  for(p=0,j=0;p<a.length;p++,j+=4){d[j]=255;d[j+1]=255;d[j+2]=255;d[j+3]=a[p];if(a[p]>127)cnt++;}
+  if(cnt<8)return 'Nothing stood out from the surroundings. Try a tighter box, or paint it by hand.';
+  tc.putImageData(id,0,0);
+  m.mx.globalCompositeOperation='source-over';m.mx.globalAlpha=1;
+  m.mx.imageSmoothingEnabled=true;m.mx.imageSmoothingQuality='high';
+  m.mx.drawImage(tcv,0,0,W,H);
+  m.dirty=true;showMask=true;$('showmask').checked=true;
+  return 'Subject selected. Paint to add anything it missed and use Erase to remove mistakes.';
+}
+function finishSmart(m,b){
+  var x0=Math.min(b.x0,b.x1),y0=Math.min(b.y0,b.y1),x1=Math.max(b.x0,b.x1),y1=Math.max(b.y0,b.y1);
+  if(x1-x0<W*0.02||y1-y0<H*0.02){hint.textContent='Drag a larger box around the subject.';return;}
+  smart=false;renderOpts(m);
+  hint.textContent='Selecting subject...';
+  setTimeout(function(){
+    if(masks.indexOf(m)<0)return;
+    var msg;
+    try{snap(m);msg=runSmart(m,b);}catch(err){msg='Smart select failed. Paint the subject by hand instead.';}
+    schedule();setHint();hint.textContent=msg;
+  },30);
+}
+
+/* ---------- AI select ---------- */
+/* U2-Net-small runs in a web worker (u2net-worker.js) from model files published next to this page.
+   Its map is a coarse first guess; segmentWithPrior then snaps the edges to the photo's colours. */
+var AI_S=192,aiWorker=null,aiBusy=false;
+function aiInput(){
+  var S=AI_S,n=S*S,c=document.createElement('canvas');c.width=S;c.height=S;
+  var x=c.getContext('2d',{willReadFrequently:true});
+  x.imageSmoothingQuality='high';x.drawImage(srcCanvas,0,0,S,S);
+  var d=x.getImageData(0,0,S,S).data,mx=1,i,p;
+  for(i=0;i<d.length;i+=4){
+    if(d[i]>mx)mx=d[i];if(d[i+1]>mx)mx=d[i+1];if(d[i+2]>mx)mx=d[i+2];
+  }
+  var inp=new Float32Array(3*n);
+  for(p=0,i=0;p<n;p++,i+=4){
+    inp[p]=(d[i]/mx-0.485)/0.229;
+    inp[n+p]=(d[i+1]/mx-0.456)/0.224;
+    inp[2*n+p]=(d[i+2]/mx-0.406)/0.225;
+  }
+  return inp;
+}
+function runAI(onProgress){
+  return new Promise(function(resolve,reject){
+    var w;
+    try{
+      if(!aiWorker)aiWorker=new Worker('u2net-worker.js');
+      w=aiWorker;
+    }catch(err){aiWorker=null;reject(err);return;}
+    function fail(msg){
+      try{w.terminate();}catch(e){}
+      if(aiWorker===w)aiWorker=null;
+      reject(new Error(msg));
+    }
+    w.onmessage=function(e){
+      var d=e.data;
+      if(d.type==='progress')onProgress(d.frac);
+      else if(d.type==='done')resolve(d.mask);
+      else if(d.type==='error')fail(d.message);
+    };
+    w.onerror=function(e){fail((e&&e.message)||'the worker did not start');};
+    var input=aiInput();
+    w.postMessage({type:'run',size:AI_S,input:input,
+      graphUrl:new URL('u2netp_192.json',location.href).href,
+      weightsUrl:new URL('u2netp_192.txt',location.href).href},[input.buffer]);
+  });
+}
+function applyAI(m,low){
+  var sc=Math.min(1,800/Math.max(W,H)),sw=Math.max(1,Math.round(W*sc)),sh=Math.max(1,Math.round(H*sc));
+  var tcv=document.createElement('canvas');tcv.width=sw;tcv.height=sh;
+  var tc=tcv.getContext('2d',{willReadFrequently:true});
+  tc.imageSmoothingQuality='high';tc.drawImage(srcCanvas,0,0,sw,sh);
+  var px=tc.getImageData(0,0,sw,sh).data;
+  var a=segmentWithPrior(px,sw,sh,upsamplePrior(low,AI_S,sw,sh));
+  var id=tc.createImageData(sw,sh),d=id.data,cnt=0,p,j;
+  for(p=0,j=0;p<a.length;p++,j+=4){d[j]=255;d[j+1]=255;d[j+2]=255;d[j+3]=a[p];if(a[p]>127)cnt++;}
+  if(cnt<8)return 'The AI did not find a clear subject. Try the box select, or paint it by hand.';
+  tc.putImageData(id,0,0);
+  m.mx.globalCompositeOperation='source-over';m.mx.globalAlpha=1;
+  m.mx.imageSmoothingEnabled=true;m.mx.imageSmoothingQuality='high';
+  m.mx.drawImage(tcv,0,0,W,H);
+  m.dirty=true;showMask=true;$('showmask').checked=true;
+  return 'Subject selected by AI. If it picked up sky, switch to Wand, choose Erase and click the sky. Paint and Erase fix the rest.';
+}
+function refreshAiButtons(){$('ai').disabled=aiBusy;renderOpts(cur());}
+function autoSelect(m){
+  if(aiBusy||!srcCanvas)return;
+  aiBusy=true;refreshAiButtons();
+  hint.textContent='Finding the subject... 0%';
+  runAI(function(f){hint.textContent='Finding the subject... '+Math.round(f*100)+'%';})
+    .then(function(low){
+      hint.textContent='Refining the edges...';
+      return new Promise(function(r){setTimeout(r,30);}).then(function(){snap(m);return applyAI(m,low);});
+    })
+    .then(function(msg){return msg;},function(err){
+      return 'The AI model could not run here ('+err.message+'). Use the box select or paint it by hand.';
+    })
+    .then(function(msg){
+      aiBusy=false;refreshAiButtons();schedule();hint.textContent=msg;
+    });
+}
+$('ai').addEventListener('click',function(){
+  if(aiBusy)return;
+  counter.subject=(counter.subject||0)+1;
+  var m=newMask('brush','Subject '+counter.subject);
+  smart=false;box=null;updateUI();autoSelect(m);
+});
+
+/* ---------- autosave: photo and masks are kept in this browser (IndexedDB) ---------- */
+function idb(){
+  return new Promise(function(res,rej){
+    var r=indexedDB.open('maskroom',1);
+    r.onupgradeneeded=function(){r.result.createObjectStore('s');};
+    r.onsuccess=function(){res(r.result);};
+    r.onerror=function(){rej(r.error);};
+  });
+}
+function idbGet(){
+  return idb().then(function(db){return new Promise(function(res,rej){
+    var q=db.transaction('s').objectStore('s').get('cur');
+    q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};
+  });});
+}
+function idbSet(v){
+  return idb().then(function(db){return new Promise(function(res,rej){
+    var t=db.transaction('s','readwrite');t.objectStore('s').put(v,'cur');
+    t.oncomplete=function(){res();};t.onerror=function(){rej(t.error);};
+  });});
+}
+function queueSave(){
+  if(!origFile)return;
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(function(){
+    try{
+      var idx=-1;
+      var list=masks.map(function(m,k){
+        if(m.id===selId)idx=k;
+        if(m.type==='brush'&&m.dirty)pullBrush(m);
+        return {type:m.type,name:m.name,visible:m.visible,adj:m.adj,feather:m.feather,invert:m.invert,g:m.g,
+          a:m.type==='brush'?m.a.slice():null};
+      });
+      idbSet({file:origFile,sel:idx,masks:list}).catch(function(){});
+    }catch(e){}
+  },1500);
+}
+function restoreSaved(){
+  try{
+    idbGet().then(function(st){
+      if(!st||!st.file)return;
+      loadFile(st.file,function(){
+        (st.masks||[]).forEach(function(s){
+          var m=newMask(s.type,s.name);
+          m.visible=s.visible!==false;m.adj=Object.assign(zeroAdj(),s.adj||{});
+          m.feather=typeof s.feather==='number'?s.feather:50;m.invert=!!s.invert;m.g=s.g||null;
+          if(s.type==='brush'){
+            if(s.a&&s.a.length===W*H){
+              m.a.set(s.a);
+              var id=m.mx.createImageData(W,H),d=id.data;
+              for(var p=0,j=0;p<s.a.length;p++,j+=4){d[j]=255;d[j+1]=255;d[j+2]=255;d[j+3]=s.a[p];}
+              m.mx.putImageData(id,0,0);
+            }
+          }else computeGrad(m);
+        });
+        var k=st.sel;
+        selId=(k>=0&&masks[k])?masks[k].id:(masks.length?masks[masks.length-1].id:null);
+        updateUI();
+        hint.textContent='Restored your last photo and masks from this browser.';
+      });
+    }).catch(function(){});
+  }catch(e){}
+}
+
+/* ---------- full-quality export ---------- */
+/* Re-opens the original photo at its real size and applies each visible mask with the same maths as the preview.
+   Mask edges are scaled up smoothly from the working resolution. */
+function loadImg(file){
+  return new Promise(function(res,rej){
+    var u=URL.createObjectURL(file),im=new Image();
+    im.onload=function(){URL.revokeObjectURL(u);res(im);};
+    im.onerror=function(){URL.revokeObjectURL(u);rej(new Error('the original photo could not be reopened'));};
+    im.src=u;
+  });
+}
+function nextFrame(){return new Promise(function(r){setTimeout(r,0);});}
+function setExportButtons(off){$('exp-jpg').disabled=off;$('exp-png').disabled=off;}
+async function exportFull(fmt){
+  if(exportBusy||!srcCanvas)return;
+  exportBusy=true;setExportButtons(true);
+  function note(t){hint.textContent=t;}
+  try{
+    var dl=(window.claude&&window.claude.use)?await window.claude.use('downloads'):null;
+    if(!dl){note('Saving is not available in this view. Open the page in claude.ai to export.');return;}
+    var fw=W,fh=H,img=null;
+    if(origFile){
+      note('Opening the original photo...');
+      img=await loadImg(origFile);
+      if(Math.abs(img.naturalWidth/img.naturalHeight-W/H)<0.02){fw=img.naturalWidth;fh=img.naturalHeight;}else img=null;
+    }
+    var cv=document.createElement('canvas');cv.width=fw;cv.height=fh;
+    var cx=cv.getContext('2d',{willReadFrequently:true});
+    if(!cx)throw new Error('the photo is too large for this browser to export at full size');
+    cx.fillStyle='#fff';cx.fillRect(0,0,fw,fh);
+    cx.drawImage(img||srcCanvas,0,0,fw,fh);
+    var id=cx.getImageData(0,0,fw,fh),d=id.data,k;
+    var act=[],need={tex:false,cla:false,sha:false,dark:false};
+    for(k=0;k<masks.length;k++){
+      var m=masks[k];
+      if(m.dirty)pullBrush(m);
+      if(!m.visible||!hasAdj(m.adj))continue;
+      var Q0=makeAct(m);act.push(Q0);noteNeed(Q0,need);
+    }
+    var P=null;
+    if(need.tex||need.cla||need.sha||need.dark){
+      note('Preparing detail layers...');await nextFrame();
+      P=buildPlanes(d,fw,fh,need,null);
+    }
+    var na=act.length,X0=new Int32Array(fw),X1=new Int32Array(fw),FX=new Float32Array(fw),x,y;
+    for(x=0;x<fw;x++){
+      var u=Math.min(W-1,Math.max(0,(x+0.5)*W/fw-0.5));
+      X0[x]=Math.floor(u);X1[x]=Math.min(W-1,X0[x]+1);FX[x]=u-X0[x];
+    }
+    for(y=0;y<fh;y++){
+      var v=Math.min(H-1,Math.max(0,(y+0.5)*H/fh-0.5)),y0=Math.floor(v),y1=Math.min(H-1,y0+1),fy=v-y0;
+      var ra=y0*W,rb=y1*W;
+      for(x=0;x<fw;x++){
+        var p=y*fw+x,i4=p*4,r=d[i4],g=d[i4+1],b=d[i4+2],touched=false;
+        for(k=0;k<na;k++){
+          var Q=act[k],A=Q.a,fx=FX[x];
+          var top=A[ra+X0[x]]*(1-fx)+A[ra+X1[x]]*fx,bot=A[rb+X0[x]]*(1-fx)+A[rb+X1[x]]*fx;
+          var al=Math.round(top*(1-fy)+bot*fy);
+          if(!al)continue;
+          touched=true;
+          adjustPixel(Q,al,r,g,b,p,P);
+          r=_r;g=_g;b=_b;
+        }
+        if(touched){d[i4]=r;d[i4+1]=g;d[i4+2]=b;}
+      }
+      if(y%48===47){note('Applying masks at full size... '+Math.round(y/fh*100)+'%');await nextFrame();}
+    }
+    cx.putImageData(id,0,0);
+    note('Encoding the image...');await nextFrame();
+    var blob=await new Promise(function(res){cv.toBlob(res,fmt==='png'?'image/png':'image/jpeg',0.95);});
+    if(!blob)throw new Error('the browser could not encode an image this large');
+    var base=($('fname').textContent||'photo').replace(/\.[^.]+$/,'').replace(/[^\w\- ]+/g,'').trim()||'photo';
+    await dl.save({filename:base+'-maskroom.'+(fmt==='png'?'png':'jpg'),data:blob});
+    note('Saved '+fw+' x '+fh+' px '+(fmt==='png'?'PNG':'JPEG')+'.');
+  }catch(err){
+    note(err&&err.code==='declined'?'Save cancelled.':'Export failed: '+((err&&(err.message||err.code))||'unknown error'));
+  }finally{
+    exportBusy=false;setExportButtons(false);
+  }
+}
+$('exp-jpg').addEventListener('click',function(){exportFull('jpg');});
+$('exp-png').addEventListener('click',function(){exportFull('png');});
+
+/* ---------- rendering ---------- */
+/* ---------- adjustments: one pipeline shared by the preview and the full-size export ---------- */
+var ADJ=[
+  {g:'Light',k:'e',l:'Exposure',min:-5,max:5,step:0.05},
+  {k:'c',l:'Contrast',min:-100,max:100,step:1},
+  {k:'hi',l:'Highlights',min:-100,max:100,step:1},
+  {k:'sh',l:'Shadows',min:-100,max:100,step:1},
+  {k:'wh',l:'Whites',min:-100,max:100,step:1},
+  {k:'bl',l:'Blacks',min:-100,max:100,step:1},
+  {g:'Colour',k:'t',l:'Temperature',min:-100,max:100,step:1},
+  {k:'ti',l:'Tint',min:-100,max:100,step:1},
+  {k:'hu',l:'Hue',min:-100,max:100,step:1},
+  {k:'s',l:'Saturation',min:-100,max:100,step:1},
+  {g:'Detail',k:'tx',l:'Texture',min:-100,max:100,step:1},
+  {k:'cl',l:'Clarity',min:-100,max:100,step:1},
+  {k:'dh',l:'Dehaze',min:-100,max:100,step:1},
+  {k:'sp',l:'Sharpness',min:0,max:100,step:1}
+];
+function zeroAdj(){var o={};ADJ.forEach(function(a){o[a.k]=0;});return o;}
+function hasAdj(q){for(var i=0;i<ADJ.length;i++)if(q[ADJ[i].k])return true;return false;}
+function fmtAdj(key,v){
+  if(key==='e')return(v>0?'+':'')+(+v).toFixed(2)+' EV';
+  return(v>0&&key!=='sp'?'+':'')+Math.round(v);
+}
+/*PIPE-START*/
+var _r=0,_g=0,_b=0;
+function makeAct(m){
+  var q=m.adj,gl=new Float32Array(256),j;
+  if(q.e)for(j=0;j<256;j++)gl[j]=Math.pow(2,q.e*j/255)*4095;
+  return {a:m.a,e:q.e,gl:gl,c:q.c/100,hi:q.hi/100,sh:q.sh/100,wh:q.wh/100,bl:q.bl/100,
+    tone:!!(q.hi||q.sh||q.wh||q.bl),t:q.t*0.3,ti:q.ti,hu:q.hu/100,s:q.s/100,
+    tx:q.tx/100,cl:q.cl/100,dh:q.dh/100,sp:q.sp/100};
+}
+/* Adjusts one pixel (r,g,b in 0..255) for one mask at strength al (0..255). Result lands in _r,_g,_b.
+   p indexes the detail layers in P, which are only read when a detail slider is in use. */
+function adjustPixel(Q,al,r,g,b,p,P){
+  var w=al/255,t,f,d,L;
+  if(Q.e){
+    var gn=Q.gl[al];
+    t=LIN[r|0]*gn;r=ENC[t>4095?4095:t|0];
+    t=LIN[g|0]*gn;g=ENC[t>4095?4095:t|0];
+    t=LIN[b|0]*gn;b=ENC[t>4095?4095:t|0];
+  }
+  if(Q.t){d=Q.t*w;r+=d;g+=d*0.15;b-=d;}
+  if(Q.ti){d=Q.ti*w;g-=d*0.25;r+=d*0.08;b+=d*0.08;}
+  if(Q.tone){
+    L=(0.299*r+0.587*g+0.114*b)/255;
+    L=L<0?0:L>1?1:L;
+    var nL=1-L,dl=0;
+    if(Q.sh)dl+=Q.sh*70*nL*nL;
+    if(Q.hi)dl+=Q.hi*70*L*L;
+    if(Q.bl)dl+=Q.bl*50*nL*nL*nL*nL;
+    dl*=w;r+=dl;g+=dl;b+=dl;
+    if(Q.wh){f=1+Q.wh*0.25*L*L*L*w;r*=f;g*=f;b*=f;}
+  }
+  if(Q.c){f=1+Q.c*w;r=(r-128)*f+128;g=(g-128)*f+128;b=(b-128)*f+128;}
+  if(Q.dh){
+    var dd=Q.dh*w;
+    if(dd>0){
+      var tt=1-dd*0.9*P.dark[p]/255,a0;
+      tt=tt<0.25?0.25:tt;a0=235*(1-tt);
+      r=(r-a0)/tt;g=(g-a0)/tt;b=(b-a0)/tt;
+    }else{
+      var hh=-dd*0.6;
+      r=r*(1-hh)+235*hh;g=g*(1-hh)+235*hh;b=b*(1-hh)+235*hh;
+    }
+  }
+  if(Q.hu){
+    var th=Q.hu*w*1.0472,cs=Math.cos(th),sn=Math.sin(th);
+    var yy=0.299*r+0.587*g+0.114*b,ii=0.596*r-0.274*g-0.322*b,qq=0.211*r-0.523*g+0.312*b;
+    var i2=ii*cs-qq*sn,q2=ii*sn+qq*cs;
+    r=yy+0.956*i2+0.621*q2;g=yy-0.272*i2-0.647*q2;b=yy-1.106*i2+1.703*q2;
+  }
+  if(Q.s){
+    f=1+Q.s*w;
+    var lum=0.299*r+0.587*g+0.114*b;
+    r=lum+(r-lum)*f;g=lum+(g-lum)*f;b=lum+(b-lum)*f;
+  }
+  if(Q.tx||Q.cl||Q.sp){
+    var lm=P.lum[p];
+    if(Q.tx){d=Q.tx*1.3*w*(lm-P.tex[p]);r+=d;g+=d;b+=d;}
+    if(Q.cl){
+      L=(0.299*r+0.587*g+0.114*b)/255;L=L<0?0:L>1?1:L;
+      d=Q.cl*1.1*w*4*L*(1-L)*(lm-P.cla[p]);r+=d;g+=d;b+=d;
+    }
+    if(Q.sp){d=Q.sp*1.8*w*(lm-P.sha[p]);r+=d;g+=d;b+=d;}
+  }
+  _r=r<0?0:r>255?255:r;_g=g<0?0:g>255?255:g;_b=b<0?0:b>255?255:b;
+}
+
+/* Detail layers: luminance and blurred copies at the scales Texture, Clarity, Sharpness and Dehaze need.
+   Radii scale with image size so the preview and the full-size export look the same. */
+function boxH(s,d,w,h,b){
+  var n=2*b+1,y,x,i,o,sum,a,c;
+  for(y=0;y<h;y++){
+    o=y*w;sum=0;
+    for(i=-b;i<=b;i++)sum+=s[o+(i<0?0:i>=w?w-1:i)];
+    for(x=0;x<w;x++){
+      d[o+x]=sum/n;
+      a=x+b+1;c=x-b;
+      sum+=s[o+(a>=w?w-1:a)]-s[o+(c<0?0:c)];
+    }
+  }
+}
+function boxV(s,d,w,h,b){
+  var n=2*b+1,sums=new Float32Array(w),x,y,i,yy,o,a,c,oa,oc;
+  for(i=-b;i<=b;i++){
+    yy=i<0?0:i>=h?h-1:i;
+    for(x=0;x<w;x++)sums[x]+=s[yy*w+x];
+  }
+  for(y=0;y<h;y++){
+    o=y*w;
+    for(x=0;x<w;x++)d[o+x]=sums[x]/n;
+    a=y+b+1;c=y-b;a=a>=h?h-1:a;c=c<0?0:c;oa=a*w;oc=c*w;
+    for(x=0;x<w;x++)sums[x]+=s[oa+x]-s[oc+x];
+  }
+}
+function blurPlane(u8,w,h,r){
+  var b=Math.max(1,Math.round(r)),n=w*h,A=new Float32Array(u8),B=new Float32Array(n),out=new Uint8Array(n),i;
+  boxH(A,B,w,h,b);boxH(B,A,w,h,b);boxH(A,B,w,h,b);
+  boxV(B,A,w,h,b);boxV(A,B,w,h,b);boxV(B,A,w,h,b);
+  for(i=0;i<n;i++)out[i]=A[i]+0.5;
+  return out;
+}
+function buildPlanes(d,w,h,need,P){
+  P=P||{};
+  var n=w*h,f=Math.max(w,h)/2200,p,i;
+  if(!P.lum){
+    var l=new Uint8Array(n);
+    for(p=0,i=0;p<n;p++,i+=4)l[p]=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]+0.5;
+    P.lum=l;
+  }
+  if(need.tex&&!P.tex)P.tex=blurPlane(P.lum,w,h,4*f);
+  if(need.cla&&!P.cla)P.cla=blurPlane(P.lum,w,h,25*f);
+  if(need.sha&&!P.sha)P.sha=blurPlane(P.lum,w,h,1.2*f);
+  if(need.dark&&!P.dark){
+    var mn=new Uint8Array(n);
+    for(p=0,i=0;p<n;p++,i+=4){var a=d[i],c=d[i+1],e=d[i+2];mn[p]=a<c?(a<e?a:e):(c<e?c:e);}
+    P.dark=blurPlane(mn,w,h,40*f);
+  }
+  return P;
+}
+/*PIPE-END*/
+function noteNeed(Q,need){
+  if(Q.tx)need.tex=true;
+  if(Q.cl)need.cla=true;
+  if(Q.sp)need.sha=true;
+  if(Q.dh)need.dark=true;
+}
+
+function render(){
+  if(!src)return;
+  var s=src.data,o=out.data,n=W*H,k,m;
+  for(k=0;k<masks.length;k++)if(masks[k].dirty)pullBrush(masks[k]);
+  var act=[],sel=cur(),need={tex:false,cla:false,sha:false,dark:false},P=null;
+  if(!compare){
+    for(k=0;k<masks.length;k++){
+      m=masks[k];
+      if(!m.visible||!hasAdj(m.adj))continue;
+      var Q=makeAct(m);act.push(Q);noteNeed(Q,need);
+    }
+    if(need.tex||need.cla||need.sha||need.dark){planeCache=buildPlanes(s,W,H,need,planeCache);P=planeCache;}
+  }
+  var ov=(!compare&&showMask&&guides&&sel)?sel.a:null,na=act.length;
+  for(var p=0,i4=0;p<n;p++,i4+=4){
+    var r=s[i4],g=s[i4+1],b=s[i4+2];
+    for(k=0;k<na;k++){
+      var al=act[k].a[p];
+      if(!al)continue;
+      adjustPixel(act[k],al,r,g,b,p,P);
+      r=_r;g=_g;b=_b;
+    }
+    if(ov){
+      var oa=ov[p];
+      if(oa){var ow=oa/255*0.55;r+=(255-r)*ow;g+=(59-g)*ow;b+=(48-b)*ow;}
+    }
+    o[i4]=r;o[i4+1]=g;o[i4+2]=b;o[i4+3]=255;
+  }
+  vctx.putImageData(out,0,0);
+  if(!nav.hidden)drawNav();
+}
+
+/* Guides: the handles, circles, brush ring and red overlay. Hidden when you click off the photo, so the
+   edit can be judged. Picking the mask in the list (or the Guides button) shows them again. */
+function setGuides(on){
+  guides=on;
+  $('guides').setAttribute('aria-pressed',on?'true':'false');
+  setHint();schedule();
+}
+$('guides').addEventListener('click',function(){setGuides(!guides);});
+document.addEventListener('pointerdown',function(e){
+  if(!guides)return;
+  var t=e.target;
+  if(t&&t.closest&&t.closest('#wrap,.panel,.zoombar,.top'))return;
+  setGuides(false);
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&guides)setGuides(false);});
+
+/* handles and brush ring live on a separate canvas so dragging never re-runs the photo pipeline */
+function drawUI(){
+  uctx.clearRect(0,0,W,H);
+  if(compare||!W||!guides)return;
+  var m=cur();if(!m)return;
+  var rect=ui.getBoundingClientRect(),sc=rect.width?W/rect.width:1;
+  function line(path,dash){
+    uctx.lineJoin='round';uctx.setLineDash(dash||[]);
+    uctx.strokeStyle='rgba(0,0,0,.65)';uctx.lineWidth=4*sc;path();uctx.stroke();
+    uctx.strokeStyle='#fff';uctx.lineWidth=1.5*sc;path();uctx.stroke();
+    uctx.setLineDash([]);
+  }
+  function dot(x,y,solid){
+    uctx.beginPath();uctx.arc(x,y,6*sc,0,7);
+    uctx.fillStyle=solid?'#fff':'rgba(0,0,0,.55)';uctx.fill();
+    uctx.strokeStyle=solid?'rgba(0,0,0,.65)':'#fff';uctx.lineWidth=1.5*sc;uctx.stroke();
+  }
+  function circle(x,y,r,dash){line(function(){uctx.beginPath();uctx.arc(x,y,r,0,7);},dash);}
+  var g=m.g;
+  if(m.type==='linear'&&g){
+    var dx=g.x1-g.x0,dy=g.y1-g.y0,L=Math.sqrt(dx*dx+dy*dy);
+    if(L>1){
+      var nx=-dy/L,ny=dx/L,E=Math.max(W,H)*2;
+      line(function(){uctx.beginPath();uctx.moveTo(g.x0-nx*E,g.y0-ny*E);uctx.lineTo(g.x0+nx*E,g.y0+ny*E);});
+      line(function(){uctx.beginPath();uctx.moveTo(g.x1-nx*E,g.y1-ny*E);uctx.lineTo(g.x1+nx*E,g.y1+ny*E);},[8*sc,6*sc]);
+      dot(g.x0,g.y0,true);dot(g.x1,g.y1,false);
+    }
+  }else if(m.type==='radial'&&g){
+    var r=Math.sqrt((g.x1-g.x0)*(g.x1-g.x0)+(g.y1-g.y0)*(g.y1-g.y0));
+    if(r>1){
+      circle(g.x0,g.y0,r);
+      if(m.feather>0)circle(g.x0,g.y0,r*(1-m.feather/100),[8*sc,6*sc]);
+      dot(g.x0,g.y0,true);
+    }
+  }else if(m.type==='brush'&&smart){
+    if(box){
+      var bx=Math.min(box.x0,box.x1),by=Math.min(box.y0,box.y1),bw=Math.abs(box.x1-box.x0),bh=Math.abs(box.y1-box.y0);
+      uctx.fillStyle='rgba(0,0,0,.4)';
+      uctx.beginPath();uctx.rect(0,0,W,H);uctx.rect(bx,by,bw,bh);uctx.fill('evenodd');
+      line(function(){uctx.beginPath();uctx.rect(bx,by,bw,bh);},[8*sc,6*sc]);
+    }
+  }else if(m.type==='brush'&&hover&&brush.tool!=='wand'){
+    circle(hover.x,hover.y,brush.size/2);
+    if(brush.feather>0)circle(hover.x,hover.y,brush.size/2*(1-brush.feather/100),[6*sc,5*sc]);
+  }
+}
+function schedule(){
+  queueSave();
+  if(scheduled)return;scheduled=true;
+  requestAnimationFrame(function(){scheduled=false;render();drawUI();});
+}
+
+/* ---------- sample photo ---------- */
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+var TREE={cx:396,cy:290,blobs:[[0,0,118],[-95,35,84],[90,28,88],[-45,-72,78],[52,-66,74],[0,58,78],[-128,78,52],[124,74,54]]};
+function trunk(x){
+  var cx=TREE.cx;
+  x.beginPath();x.moveTo(cx-26,660);x.quadraticCurveTo(cx-12,560,cx-11,380);
+  x.lineTo(cx+11,380);x.quadraticCurveTo(cx+12,560,cx+28,660);x.closePath();x.fill();
+}
+function hill(x,w,h,base,waves,col){
+  x.fillStyle=col;x.beginPath();x.moveTo(0,h);
+  for(var px=0;px<=w;px+=6){
+    var y=base*h;
+    for(var k=0;k<waves.length;k++)y+=waves[k][1]*Math.sin(px/waves[k][0]+waves[k][2]);
+    x.lineTo(px,y);
+  }
+  x.lineTo(w,h);x.closePath();x.fill();
+}
+function buildSample(){
+  var w=1200,h=800,c=document.createElement('canvas');c.width=w;c.height=h;
+  var x=c.getContext('2d'),R=rng(11),g,i,j;
+  g=x.createLinearGradient(0,0,0,h*0.64);
+  g.addColorStop(0,'#4d7db4');g.addColorStop(0.62,'#a4bdd2');g.addColorStop(1,'#efdcbc');
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  g=x.createRadialGradient(w*0.76,h*0.52,0,w*0.76,h*0.52,w*0.38);
+  g.addColorStop(0,'rgba(255,238,196,.95)');g.addColorStop(0.3,'rgba(255,216,152,.42)');g.addColorStop(1,'rgba(255,216,152,0)');
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  for(i=0;i<9;i++){
+    var ccx=R()*w,ccy=60+R()*h*0.28,rw=90+R()*130;
+    for(j=0;j<6;j++){
+      var px=ccx+(R()-0.5)*rw*1.4,py=ccy+(R()-0.5)*22,r=rw*(0.28+R()*0.3);
+      var cg=x.createRadialGradient(px,py,0,px,py,r);
+      cg.addColorStop(0,'rgba(255,255,255,.55)');cg.addColorStop(1,'rgba(255,255,255,0)');
+      x.fillStyle=cg;x.fillRect(px-r,py-r,r*2,r*2);
+    }
+  }
+  hill(x,w,h,0.58,[[170,26,1],[61,12,0]],'#7f9c9c');
+  hill(x,w,h,0.645,[[230,36,3],[83,10,2]],'#5f8670');
+  g=x.createLinearGradient(0,h*0.7,0,h);g.addColorStop(0,'#78a447');g.addColorStop(1,'#35602a');
+  x.fillStyle=g;x.beginPath();x.moveTo(0,h);
+  for(i=0;i<=w;i+=8)x.lineTo(i,h*0.74+12*Math.sin(i/300));
+  x.lineTo(w,h);x.closePath();x.fill();
+  var cx=TREE.cx,cy=TREE.cy,bl=TREE.blobs;
+  x.fillStyle='rgba(20,40,15,.28)';x.beginPath();x.ellipse(cx+40,652,170,20,0,0,7);x.fill();
+  g=x.createLinearGradient(cx-24,0,cx+24,0);
+  g.addColorStop(0,'#5a4030');g.addColorStop(0.6,'#7a5a41');g.addColorStop(1,'#4a3426');
+  x.fillStyle=g;trunk(x);
+  for(i=0;i<bl.length;i++){
+    var bx=cx+bl[i][0],by=cy+bl[i][1],br=bl[i][2];
+    var bg=x.createRadialGradient(bx-br*0.3,by-br*0.38,br*0.1,bx,by,br);
+    bg.addColorStop(0,'#86b85a');bg.addColorStop(0.55,'#4c8341');bg.addColorStop(1,'#29512e');
+    x.fillStyle=bg;x.beginPath();x.arc(bx,by,br,0,7);x.fill();
+  }
+  for(i=0;i<260;i++){
+    var b=bl[Math.floor(R()*bl.length)],an=R()*6.28,dd=Math.sqrt(R())*b[2]*0.95;
+    x.fillStyle=R()<0.5?'rgba(150,200,90,.35)':'rgba(25,60,28,.3)';
+    x.beginPath();x.arc(cx+b[0]+Math.cos(an)*dd,cy+b[1]+Math.sin(an)*dd,3+R()*5,0,7);x.fill();
+  }
+  for(i=0;i<1400;i++){
+    var gx=R()*w,gy=h*0.76+R()*h*0.24,len=8+(gy/h-0.76)*90+R()*10;
+    x.strokeStyle='hsla('+(80+R()*30)+','+(45+R()*20)+'%,'+(25+R()*28)+'%,.75)';
+    x.lineWidth=1+R()*1.6;x.beginPath();x.moveTo(gx,gy);x.lineTo(gx+(R()-0.5)*6,gy-len);x.stroke();
+  }
+  for(i=0;i<70;i++){
+    var fx=R()*w,fy=h*0.8+R()*h*0.18;
+    x.fillStyle=R()<0.6?'#f5f1e4':'#f2c94c';x.beginPath();x.arc(fx,fy,1.5+(fy/h-0.8)*14,0,7);x.fill();
+  }
+  return c;
+}
+function sampleMasks(){
+  var t=newMask('brush','Tree'),x=t.mx,k;
+  x.fillStyle='#fff';x.shadowColor='#fff';x.shadowBlur=14;
+  trunk(x);
+  for(k=0;k<TREE.blobs.length;k++){
+    var b=TREE.blobs[k];x.beginPath();x.arc(TREE.cx+b[0],TREE.cy+b[1],b[2],0,7);x.fill();
+  }
+  x.shadowBlur=0;t.dirty=true;t.adj=Object.assign(zeroAdj(),{e:0.7,s:28,t:18});
+  var s=newMask('linear','Sky');
+  s.g={x0:W,y0:0,x1:W*0.5,y1:H*0.45};computeGrad(s);s.adj=Object.assign(zeroAdj(),{e:-1.2,c:14,t:-35});
+  selId=t.id;
+}
+
+/* ---------- loading a photo ---------- */
+function setImage(c,name){
+  W=c.width;H=c.height;
+  srcCanvas=c;smart=false;box=null;planeCache=null;
+  src=c.getContext('2d').getImageData(0,0,W,H);out=new ImageData(W,H);
+  view.width=ui.width=W;view.height=ui.height=H;
+  wrap.style.setProperty('--ratio',W/H);
+  navc.width=200;navc.height=Math.max(1,Math.round(200*H/W));
+  zoom=1;tx=0;ty=0;pts={};pinch=null;pan=null;
+  masks=[];selId=null;counter={brush:0,linear:0,radial:0};hover=null;drag=null;
+  $('fname').textContent=name;
+  makeStamp();applyZoom();schedule();
+}
+function loadFile(f,after){
+  if(!f||!/^image\//.test(f.type))return;
+  var url=URL.createObjectURL(f),im=new Image();
+  im.onload=function(){
+    var sc=Math.min(1,2200/Math.max(im.width,im.height));
+    var c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));
+    var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);
+    setImage(c,f.name);origFile=f;updateUI();
+    if(after)after();
+  };
+  im.onerror=function(){URL.revokeObjectURL(url);hint.textContent='That file could not be opened as an image.';};
+  im.src=url;
+}
+
+/* ---------- panel ---------- */
+function slider(id,label,min,max,step,val,text){
+  return '<div class="row"><label for="'+id+'">'+label+'</label><output id="'+id+'-v" for="'+id+'">'+text+'</output>'+
+    '<input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'"></div>';
+}
+adj.innerHTML=ADJ.map(function(a){
+  return(a.g?'<h3 class="grp">'+a.g+'</h3>':'')+slider('a-'+a.k,a.l,a.min,a.max,a.step,0,fmtAdj(a.k,0));
+}).join('');
+
+function setHint(){
+  var m=cur();
+  if(m&&!guides){hint.textContent='Mask guides are hidden so you can judge the edit. Click the mask in the list, or the Guides button, to edit it again.';return;}
+  if(m&&m.type==='brush'&&smart){
+    hint.textContent='Drag a box around the whole subject, leaving some background around it. Then paint or erase to fix mistakes.';
+    return;
+  }
+  if(m&&m.type==='brush'&&brush.tool==='wand'){
+    hint.textContent='Click a colour on the photo to '+(brush.mode==='erase'?'remove it from':'add it to')+' the mask. Raise the tolerance to catch more shades.';
+    return;
+  }
+  hint.textContent=!m?'Add a mask to start.':
+    m.type==='brush'?'Paint over the area to adjust. Red shows what the mask covers. Scroll to zoom, hold Space and drag to move around.':
+    m.type==='linear'?'Drag from where the effect is strongest toward where it should fade out.':
+    'Drag from the centre outward to set the size of the circle.';
+}
+function renderOpts(m){
+  if(!m){opts.hidden=true;opts.innerHTML='';return;}
+  opts.hidden=false;
+  var h='<h2>'+m.name+' <span class="for">'+LABEL[m.type]+'</span></h2>';
+  if(m.type==='brush'){
+    h+='<button class="btn ai smartbtn" type="button" data-ai="1"'+(aiBusy?' disabled':'')+'>Auto select subject (AI)</button>';
+    h+='<button class="btn smartbtn" type="button" data-smart="1" aria-pressed="'+smart+'">Select by box</button>';
+    h+='<div class="seg" role="group" aria-label="Tool">'+
+      '<button class="btn" type="button" data-tool="brush" aria-pressed="'+(brush.tool==='brush')+'">Brush</button>'+
+      '<button class="btn" type="button" data-tool="wand" aria-pressed="'+(brush.tool==='wand')+'">Wand</button></div>';
+    h+='<div class="seg" role="group" aria-label="Brush mode">'+
+      '<button class="btn" type="button" data-mode="paint" aria-pressed="'+(brush.mode==='paint')+'">Paint</button>'+
+      '<button class="btn" type="button" data-mode="erase" aria-pressed="'+(brush.mode==='erase')+'">Erase</button></div>'+
+      (brush.tool==='wand'
+        ?slider('o-tol','Colour tolerance',5,120,1,brush.tol,brush.tol)+
+          '<label class="chk" style="margin:0 0 12px"><input type="checkbox" id="o-contig"'+(brush.contig?' checked':'')+'> Only the connected area</label>'
+        :slider('o-size','Size',10,300,1,brush.size,brush.size+' px')+
+          slider('o-feather','Feather',0,100,1,brush.feather,brush.feather+'%'))+
+      '<div class="seg"><button class="btn" type="button" data-undo="1">Undo</button>'+
+      '<button class="btn" type="button" data-clear="1">Clear mask</button></div>';
+  }else{
+    if(m.type==='radial')h+=slider('o-feather','Feather',0,100,1,m.feather,m.feather+'%');
+    h+='<label class="chk"><input type="checkbox" id="o-invert"'+(m.invert?' checked':'')+'> Invert mask</label>'+
+       '<p class="note" style="margin-top:10px">Drag on the photo again to redraw it.</p>';
+  }
+  opts.innerHTML=h;
+}
+function updateUI(){
+  var m=cur(),k,h='';
+  if(!m||m.type!=='brush'){smart=false;box=null;}
+  $('guides').setAttribute('aria-pressed',guides?'true':'false');
+  if(!masks.length)h='<li class="empty">No masks yet. Add one with the buttons above.</li>';
+  for(k=0;k<masks.length;k++){
+    var a=masks[k];
+    h+='<li data-id="'+a.id+'"'+(a.id===selId?' class="sel"':'')+'>'+
+      '<button class="pick" type="button" data-act="pick" aria-pressed="'+(a.id===selId)+'">'+ICON[a.type]+'<span class="nm">'+a.name+'</span><span class="ty">'+LABEL[a.type]+'</span></button>'+
+      '<button class="icon" type="button" data-act="vis" aria-pressed="'+a.visible+'" aria-label="'+(a.visible?'Hide ':'Show ')+a.name+'">'+ICON.eye+'</button>'+
+      '<button class="icon" type="button" data-act="del" aria-label="Delete '+a.name+'">'+ICON.del+'</button></li>';
+  }
+  ml.innerHTML=h;
+  renderOpts(m);
+  var keys=ADJ.map(function(a){return a.k;});
+  for(k=0;k<keys.length;k++){
+    var key=keys[k],inp=$('a-'+key),val=m?m.adj[key]:0;
+    inp.disabled=!m;inp.value=val;$('a-'+key+'-v').textContent=fmtAdj(key,val);
+  }
+  $('reset').disabled=!m;
+  $('adjfor').textContent=m?m.name:'';
+  setHint();schedule();
+}
+
+/* ---------- zoom and pan ---------- */
+var MAXZ=16;
+function wrapSize(){return{w:wrap.clientWidth,h:wrap.clientHeight};}
+function dist(a,b){var dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy)||1;}
+function touchPts(){return Object.keys(pts).map(function(k){return pts[k];});}
+function clampPan(){
+  var s=wrapSize();
+  tx=Math.min(0,Math.max(s.w*(1-zoom),tx));
+  ty=Math.min(0,Math.max(s.h*(1-zoom),ty));
+}
+function drawNav(){if(W)nctx.drawImage(view,0,0,navc.width,navc.height);}
+function updateNav(){
+  if(zoom<=1.001){nav.hidden=true;return;}
+  var wasHidden=nav.hidden;
+  nav.hidden=false;
+  if(wasHidden)drawNav();
+  var s=wrapSize(),nw=nav.clientWidth,nh=nav.clientHeight;
+  navbox.style.left=(-tx/(s.w*zoom)*nw)+'px';
+  navbox.style.top=(-ty/(s.h*zoom)*nh)+'px';
+  navbox.style.width=(nw/zoom)+'px';
+  navbox.style.height=(nh/zoom)+'px';
+}
+function applyZoom(){
+  clampPan();
+  zoomer.style.transform='translate('+tx+'px,'+ty+'px) scale('+zoom+')';
+  $('zval').textContent=Math.round(zoom*100)+'%';
+  updateNav();drawUI();
+}
+function zoomAt(f,cx,cy){
+  var nz=Math.min(MAXZ,Math.max(1,zoom*f));
+  if(nz===zoom)return;
+  var k=nz/zoom;
+  tx=cx-(cx-tx)*k;ty=cy-(cy-ty)*k;zoom=nz;applyZoom();
+}
+function zoomCenter(f){var s=wrapSize();zoomAt(f,s.w/2,s.h/2);}
+function navMove(e){
+  var r=nav.getBoundingClientRect(),s=wrapSize();
+  var fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
+  tx=-(fx*s.w*zoom-s.w/2);ty=-(fy*s.h*zoom-s.h/2);applyZoom();
+}
+function setPanCursor(){ui.classList.toggle('pan',handOn||spaceDown);}
+
+$('zin').addEventListener('click',function(){zoomCenter(1.5);});
+$('zout').addEventListener('click',function(){zoomCenter(1/1.5);});
+$('zfit').addEventListener('click',function(){zoom=1;tx=0;ty=0;applyZoom();});
+$('hand').addEventListener('click',function(){
+  handOn=!handOn;this.setAttribute('aria-pressed',handOn?'true':'false');setPanCursor();
+});
+wrap.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var r=wrap.getBoundingClientRect();
+  zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015)),e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
+nav.addEventListener('pointerdown',function(e){
+  nav.setPointerCapture(e.pointerId);navDrag=true;navMove(e);e.preventDefault();
+});
+nav.addEventListener('pointermove',function(e){if(navDrag)navMove(e);});
+nav.addEventListener('pointerup',function(){navDrag=false;});
+nav.addEventListener('pointercancel',function(){navDrag=false;});
+document.addEventListener('keydown',function(e){
+  if(e.code!=='Space'||/^(INPUT|BUTTON|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
+  e.preventDefault();spaceDown=true;setPanCursor();
+});
+document.addEventListener('keyup',function(e){if(e.code==='Space'){spaceDown=false;setPanCursor();}});
+
+/* ---------- events ---------- */
+document.querySelectorAll('[data-add]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var t=b.getAttribute('data-add');
+    if(t==='subject'){counter.subject=(counter.subject||0)+1;newMask('brush','Subject '+counter.subject);}
+    else newMask(t);
+    smart=(t==='subject');box=null;updateUI();
+  });
+});
+ml.addEventListener('click',function(e){
+  var b=e.target.closest('button[data-act]');if(!b)return;
+  var id=+b.closest('li').getAttribute('data-id'),act=b.getAttribute('data-act'),k;
+  smart=false;box=null;
+  if(act==='pick'){selId=id;guides=true;}
+  else if(act==='vis'){for(k=0;k<masks.length;k++)if(masks[k].id===id)masks[k].visible=!masks[k].visible;}
+  else if(act==='del'){
+    masks=masks.filter(function(m){return m.id!==id;});
+    if(selId===id)selId=masks.length?masks[masks.length-1].id:null;
+  }
+  updateUI();
+});
+$('showmask').addEventListener('change',function(e){showMask=e.target.checked;schedule();});
+adj.addEventListener('input',function(e){
+  var m=cur();if(!m)return;
+  var key=e.target.id.slice(2),val=+e.target.value;
+  m.adj[key]=val;$('a-'+key+'-v').textContent=fmtAdj(key,val);schedule();
+});
+document.addEventListener('dblclick',function(e){
+  var t=e.target;
+  if(t.matches&&t.matches('input[type=range][id^="a-"]')&&!t.disabled){
+    t.value=0;t.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+});
+$('reset').addEventListener('click',function(){var m=cur();if(m){m.adj=zeroAdj();updateUI();}});
+opts.addEventListener('input',function(e){
+  var m=cur(),t=e.target;if(!m)return;
+  if(t.id==='o-tol'){brush.tol=+t.value;$('o-tol-v').textContent=t.value;}
+  else if(t.id==='o-size'){brush.size=+t.value;makeStamp();$('o-size-v').textContent=t.value+' px';drawUI();}
+  else if(t.id==='o-feather'){
+    $('o-feather-v').textContent=t.value+'%';
+    if(m.type==='brush'){brush.feather=+t.value;makeStamp();drawUI();}
+    else{m.feather=+t.value;computeGrad(m);schedule();}
+  }
+});
+opts.addEventListener('change',function(e){
+  var m=cur();
+  if(m&&e.target.id==='o-invert'){m.invert=e.target.checked;computeGrad(m);schedule();}
+  else if(e.target.id==='o-contig'){brush.contig=e.target.checked;}
+});
+opts.addEventListener('click',function(e){
+  var m=cur(),b=e.target.closest('button');if(!m||!b)return;
+  if(b.hasAttribute('data-tool')){brush.tool=b.getAttribute('data-tool');smart=false;box=null;renderOpts(m);setHint();drawUI();return;}
+  if(b.hasAttribute('data-undo')){undo(m);return;}
+  if(b.hasAttribute('data-ai')){autoSelect(m);return;}
+  if(b.hasAttribute('data-smart')){smart=!smart;box=null;renderOpts(m);setHint();drawUI();return;}
+  if(b.hasAttribute('data-mode')){brush.mode=b.getAttribute('data-mode');smart=false;box=null;renderOpts(m);setHint();drawUI();}
+  else if(b.hasAttribute('data-clear')&&m.type==='brush'){snap(m);m.mx.clearRect(0,0,W,H);m.dirty=true;schedule();}
+});
+
+function pos(e){var r=ui.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
+ui.addEventListener('pointerdown',function(e){
+  pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  ui.setPointerCapture(e.pointerId);
+  if(Object.keys(pts).length===2){
+    drag=null;pan=null;
+    var a=touchPts();
+    pinch={d:dist(a[0],a[1]),cx:(a[0].x+a[1].x)/2,cy:(a[0].y+a[1].y)/2};
+    e.preventDefault();return;
+  }
+  if(e.button===1||handOn||spaceDown){
+    pan={x:e.clientX,y:e.clientY,tx:tx,ty:ty};
+    ui.classList.add('panning');e.preventDefault();return;
+  }
+  var m=cur();if(!m||e.button>0)return;
+  if(!guides){hint.textContent='Mask guides are hidden. Click the mask in the list, or the Guides button, to edit it.';return;}
+  var p=pos(e);
+  if(smart&&m.type==='brush'){
+    drag={m:m,box:true,last:p};box={x0:p.x,y0:p.y,x1:p.x,y1:p.y};hover=null;
+    drawUI();e.preventDefault();return;
+  }
+  if(m.type==='brush')snap(m);
+  if(m.type==='brush'&&brush.tool==='wand'){wand(m,p.x,p.y);schedule();e.preventDefault();return;}
+  drag={m:m,last:p};hover=p;
+  if(m.type==='brush')stampAt(m,p.x,p.y,1);
+  else{m.g={x0:p.x,y0:p.y,x1:p.x,y1:p.y};computeGrad(m);}
+  schedule();e.preventDefault();
+});
+ui.addEventListener('pointermove',function(e){
+  if(pts[e.pointerId])pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  if(pinch&&Object.keys(pts).length>=2){
+    var a=touchPts(),d=dist(a[0],a[1]),cx=(a[0].x+a[1].x)/2,cy=(a[0].y+a[1].y)/2,r=wrap.getBoundingClientRect();
+    tx+=cx-pinch.cx;ty+=cy-pinch.cy;
+    zoomAt(d/pinch.d,cx-r.left,cy-r.top);applyZoom();
+    pinch={d:d,cx:cx,cy:cy};return;
+  }
+  if(pan){tx=pan.tx+(e.clientX-pan.x);ty=pan.ty+(e.clientY-pan.y);applyZoom();return;}
+  var p=pos(e);hover=p;
+  if(drag&&drag.box){box.x1=p.x;box.y1=p.y;drawUI();return;}
+  if(drag){
+    var m=drag.m;
+    if(m.type==='brush')strokeTo(m,p);
+    else{m.g.x1=p.x;m.g.y1=p.y;computeGrad(m);}
+    schedule();
+  }else drawUI();
+});
+function endDrag(e){
+  var d=drag;
+  delete pts[e.pointerId];
+  if(Object.keys(pts).length<2)pinch=null;
+  drag=null;pan=null;ui.classList.remove('panning');
+  if(e.pointerType==='touch')hover=null;
+  if(d&&d.box){
+    var bb=box;box=null;
+    if(e.type==='pointerup'&&bb)finishSmart(d.m,bb);
+  }
+  drawUI();
+}
+ui.addEventListener('pointerup',endDrag);
+ui.addEventListener('pointercancel',endDrag);
+ui.addEventListener('pointerleave',function(){if(!drag){hover=null;drawUI();}});
+
+var cmp=$('cmp');
+function cmpOn(){compare=true;render();drawUI();}
+function cmpOff(){if(!compare)return;compare=false;render();drawUI();}
+cmp.addEventListener('pointerdown',cmpOn);
+['pointerup','pointerleave','pointercancel','blur'].forEach(function(n){cmp.addEventListener(n,cmpOff);});
+cmp.addEventListener('keydown',function(e){if(e.key===' '||e.key==='Enter'){e.preventDefault();if(!compare)cmpOn();}});
+cmp.addEventListener('keyup',function(e){if(e.key===' '||e.key==='Enter')cmpOff();});
+
+$('open').addEventListener('click',function(){$('file').click();});
+$('file').addEventListener('change',function(e){loadFile(e.target.files[0]);e.target.value='';});
+var stage=$('stage');
+stage.addEventListener('dragover',function(e){e.preventDefault();stage.classList.add('drop');});
+stage.addEventListener('dragleave',function(){stage.classList.remove('drop');});
+stage.addEventListener('drop',function(e){e.preventDefault();stage.classList.remove('drop');loadFile(e.dataTransfer.files[0]);});
+window.addEventListener('resize',applyZoom);
+
+/* ---------- start with a working example ---------- */
+setImage(buildSample(),'Sample photo');
+sampleMasks();
+updateUI();
+restoreSaved();
+hint.textContent='Sample photo. The Tree mask is selected and shown in red; move a slider to change only that area. Drop your own photo here to start. Scroll over the photo to zoom.';
+})();
+</script>
+
+</body></html>
